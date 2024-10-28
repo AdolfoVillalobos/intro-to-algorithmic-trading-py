@@ -1,3 +1,8 @@
+.PHONY: install  ## Install the package, dependencies
+install:
+	uv sync --frozen
+	uv pip compile pyproject.toml -o requirements.txt
+
 .PHONY: format  # Format the code
 format:
 	uv run ruff format

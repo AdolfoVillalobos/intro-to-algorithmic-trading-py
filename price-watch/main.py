@@ -4,10 +4,12 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 import logging
+import aio_pika
+import asyncio
 
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
-formatter = logging.Formatter('%(asctime)s %(levelname)-7s %(filename)-15s %(message)s')
+formatter = logging.Formatter("%(asctime)s %(levelname)-7s %(filename)-15s %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
@@ -30,8 +32,8 @@ class PriceMessage(BaseModel):
                 datetime=dt,
                 symbol=orderbook["symbol"],
                 ask_price=orderbook["asks"][0][0],
-                    bid_price=orderbook["bids"][0][0],
-                )
+                bid_price=orderbook["bids"][0][0],
+            )
         except Exception as e:
             logger.error(f"Error parsing orderbook {orderbook}: {e}")
             return None
@@ -52,20 +54,40 @@ class Observer(BaseModel):
                 orderbook = await exchange.watch_order_book(self.symbol)
                 new_message = PriceMessage.from_orderbook(orderbook)
 
-                if self.last_message is None or self.last_message.has_changed(new_message):
+                if self.last_message is None or self.last_message.has_changed(
+                    new_message
+                ):
                     logger.info(f"Observed {new_message}")
                     self.last_message = new_message
-
+                    yield new_message
             except Exception as e:
                 logger.error(f"Error watching {self.symbol}: {e}")
 
-            await asyncio.sleep(1)
+            finally:
+                await asyncio.sleep(1)
+
+
+async def producer(observer: Observer, exchange: ccxt.Exchange, rabbitmq_url: str):
+    connection = await aio_pika.connect_robust(rabbitmq_url)
+    channel = await connection.channel()
+    queue = await channel.declare_queue("price_updates")
+
+    try:
+        async for price_message in observer.watch(exchange):
+            message = aio_pika.Message(body=price_message.model_dump_json().encode())
+            await channel.default_exchange.publish(
+                message,
+                routing_key=queue.name,
+            )
+            logger.info(f"Published message for {price_message.symbol}")
+    finally:
+        await connection.close()
 
 
 async def main() -> None:
     exchange = ccxt.pro.binance()
     observer = Observer(symbol="BTC/USDT")
-    await observer.watch(exchange)
+    await producer(observer, exchange, "amqp://guest:guest@rabbitmq/")
 
 
 if __name__ == "__main__":
