@@ -58,11 +58,11 @@ def simple_strategy(arbitrage: Arbitrage, price: PriceMessage) -> list[Order]:
             order_type="limit",
         ),
         Order(
-            symbol=arbitrage.origin_market,
+            symbol=arbitrage.target_market,
             quantity=1.0,
             price=ask_price,
             side="sell",
-            exchange=arbitrage.origin_exchange,
+            exchange=arbitrage.target_exchange,
             order_type="limit",
         ),
     ]
@@ -109,6 +109,8 @@ async def main():
         target_exchange="kraken",
         origin_exchange="binance",
         profit_threshold=0.01,
+        target_fee=0.002,
+        origin_fee=0.001,
     )
     connection = await aio_pika.connect("amqp://guest:guest@rabbitmq/")
     observer = Observer(arbitrage=arbitrage, strategy=simple_strategy)

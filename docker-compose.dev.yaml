@@ -1,5 +1,17 @@
 ---
 services:
+  place-orders:
+    tty: true
+    build:
+      context: ./place-orders
+      dockerfile: Dockerfile
+    container_name: place-orders
+    networks:
+      - demo
+    restart: always
+    depends_on:
+      - rabbitmq
+
   bot-operator:
     tty: true
     build:
