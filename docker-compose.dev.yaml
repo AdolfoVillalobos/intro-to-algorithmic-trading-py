@@ -1,0 +1,28 @@
+---
+services:
+  price-watch:
+    tty: true
+    build:
+      context: ./price-watch
+      dockerfile: Dockerfile
+    container_name: price-watch
+    networks:
+      - demo
+    depends_on:
+      - rabbitmq
+  rabbitmq:
+    image: rabbitmq:3.12.2-management
+    ports:
+      - 5672:5672
+      - 15672:15672
+    networks:
+      - demo
+    container_name: rabbitmq
+    restart: always
+    expose:
+      - "5672"
+
+networks:
+  demo:
+    name: "demo"
+    driver: bridge
