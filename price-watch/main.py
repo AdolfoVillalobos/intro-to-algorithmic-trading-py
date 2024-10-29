@@ -1,15 +1,28 @@
-import ccxt
-import ccxt.pro
-from datetime import datetime
-from pydantic import BaseModel, Field
+from __future__ import annotations
 
-import logging
-import aio_pika
 import asyncio
+import logging
+from datetime import datetime
+
+import aio_pika
+import ccxt.pro
+import colorlog
+from pydantic import BaseModel
+from pydantic import Field
+
 
 logger = logging.getLogger(__name__)
-handler = logging.StreamHandler()
-formatter = logging.Formatter("%(asctime)s %(levelname)-7s %(filename)-15s %(message)s")
+handler = colorlog.StreamHandler()
+formatter = colorlog.ColoredFormatter(
+    "%(log_color)s%(asctime)s %(levelname)-7s %(message)s%(reset)s",
+    log_colors={
+        "DEBUG": "blue",
+        "INFO": "blue",
+        "WARNING": "yellow",
+        "ERROR": "red",
+        "CRITICAL": "red,bg_white",
+    },
+)
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
@@ -20,6 +33,9 @@ class PriceMessage(BaseModel):
     ask_price: float
     bid_price: float
     datetime: datetime
+
+    def __str__(self) -> str:
+        return f"{self.symbol} ask={self.ask_price} bid={self.bid_price}"
 
     @classmethod
     def from_orderbook(cls, orderbook: dict):
@@ -57,14 +73,14 @@ class Observer(BaseModel):
                 if self.last_message is None or self.last_message.has_changed(
                     new_message
                 ):
-                    logger.info(f"Observed {new_message}")
+                    logger.info(f"Observed: {new_message}")
                     self.last_message = new_message
                     yield new_message
             except Exception as e:
                 logger.error(f"Error watching {self.symbol}: {e}")
 
             finally:
-                await asyncio.sleep(1)
+                await asyncio.sleep(2)
 
 
 async def producer(observer: Observer, exchange: ccxt.Exchange, rabbitmq_url: str):
@@ -79,7 +95,6 @@ async def producer(observer: Observer, exchange: ccxt.Exchange, rabbitmq_url: st
                 message,
                 routing_key=queue.name,
             )
-            logger.info(f"Published message for {price_message.symbol}")
     finally:
         await connection.close()
 
@@ -91,6 +106,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    import asyncio
-
     asyncio.run(main())

@@ -28,6 +28,8 @@ cffi==1.17.1
     #   pycares
 charset-normalizer==3.4.0
     # via requests
+colorlog==6.8.2
+    # via price-watch (pyproject.toml)
 cryptography==43.0.3
     # via ccxt
 frozenlist==1.5.0

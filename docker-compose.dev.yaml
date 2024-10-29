@@ -2,6 +2,8 @@
 services:
   place-orders:
     tty: true
+    env_file:
+      - place-orders/.env
     build:
       context: ./place-orders
       dockerfile: Dockerfile
@@ -10,8 +12,8 @@ services:
       - demo
     restart: always
     depends_on:
-      - rabbitmq
-
+      rabbitmq:
+        condition: service_healthy
   bot-operator:
     tty: true
     build:
@@ -22,7 +24,8 @@ services:
       - demo
     restart: always
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
 
   price-watch:
     tty: true
@@ -33,7 +36,8 @@ services:
     networks:
       - demo
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
   rabbitmq:
     image: rabbitmq:3.12.2-management
     ports:
@@ -43,6 +47,11 @@ services:
       - demo
     container_name: rabbitmq
     restart: always
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
     expose:
       - "5672"
 
