@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import signal
 from datetime import datetime
 from typing import Literal
 
@@ -109,7 +110,9 @@ class Observer(BaseModel):
 
         await queue.consume(self.on_order_update)
 
-        await asyncio.Future()
+    async def close(self):
+        if self.exchange:
+            await self.exchange.cancel_all_orders()
 
 
 async def main():
@@ -117,7 +120,23 @@ async def main():
     exchange = await load_exchange("kraken")
     connection = await aio_pika.connect("amqp://guest:guest@rabbitmq/")
     observer = Observer(exchange=exchange)
-    await observer.subscribe(connection)
+
+    loop = asyncio.get_running_loop()
+    main_task = asyncio.Future()
+
+    def handle_sigterm():
+        if not main_task.done():
+            main_task.set_result(None)
+
+    # Register SIGTERM handler
+    loop.add_signal_handler(signal.SIGTERM, handle_sigterm)
+
+    try:
+        await observer.subscribe(connection)
+        await main_task  # Wait until SIGTERM is received
+    finally:
+        await observer.close()
+        await connection.close()
 
 
 if __name__ == "__main__":
