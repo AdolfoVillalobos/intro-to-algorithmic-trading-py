@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Command to run the application
-CMD ["python", "place_orders_service.py"]
+CMD ["python", "trades_service.py"]
