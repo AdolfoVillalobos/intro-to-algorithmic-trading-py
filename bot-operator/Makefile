@@ -17,6 +17,11 @@ lint:
 typecheck:
 	uv run pyright
 
+
+.PHONY: test  # Run the tests
+test:
+	uv run pytest
+
 run:
 	uv run python -m main
 

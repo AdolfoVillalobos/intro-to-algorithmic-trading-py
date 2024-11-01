@@ -5,13 +5,13 @@ import json
 from collections.abc import Callable
 
 import aio_pika
-from logger_utils import get_logger
-from models import Arbitrage
-from models import Order
-from models import PriceMessage
-from models import TradeMessage
 from pydantic import BaseModel
 from pydantic import Field
+from src.logger_utils import get_logger
+from src.models import Arbitrage
+from src.models import Order
+from src.models import PriceMessage
+from src.models import TradeMessage
 
 logger = get_logger(__name__)
 
