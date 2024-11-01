@@ -1,52 +1,54 @@
 ---
 services:
-  # place-orders:
-  #   tty: true
-  #   env_file:
-  #     - place-orders/.env
-  #   build:
-  #     context: ./place-orders
-  #     dockerfile: Dockerfile
-  #   container_name: place-orders
-  #   networks:
-  #     - demo
-  #   restart: always
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  # bot-operator:
-  #   tty: true
-  #   build:
-  #     context: ./bot-operator
-  #     dockerfile: Dockerfile
-  #   container_name: bot-operator
-  #   networks:
-  #     - demo
-  #   restart: always
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-
-  trade-watch-bitfinex:
+  place-orders-bitfinex:
     tty: true
-    build:
-      context: ./trade-watch
-      dockerfile: Dockerfile
-    container_name: trade-watch-bitfinex
     env_file:
-      - ./trade-watch/.env.trade-watch-bitfinex
+      - place-orders/.env.place-orders-bitfinex
+    build:
+      context: ./place-orders
+      dockerfile: Dockerfile
+    container_name: place-orders-bitfinex
     networks:
       - demo
+    restart: always
     depends_on:
       rabbitmq:
         condition: service_healthy
+  bot-operator:
+    tty: true
+    build:
+      context: ./bot-operator
+      dockerfile: Dockerfile
+    container_name: bot-operator
+    networks:
+      - demo
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  # trade-watch-bitfinex:
+  #   tty: true
+  #   build:
+  #     context: ./trade-watch
+  #     dockerfile: Dockerfile
+  #   container_name: trade-watch-bitfinex
+  #   env_file:
+  #     - ./trade-watch/.env.trade-watch-bitfinex
+  #   networks:
+  #     - demo
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
 
   price-watch-kraken:
     tty: true
     build:
       context: ./price-watch
       dockerfile: Dockerfile
-    container_name: price-watch
+    container_name: price-watch-kraken
+    env_file:
+      - ./price-watch/.env.price-watch-kraken
     networks:
       - demo
     depends_on:

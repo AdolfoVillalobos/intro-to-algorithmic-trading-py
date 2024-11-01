@@ -1,80 +1,33 @@
 from __future__ import annotations
 
 import asyncio
-import logging
-from datetime import datetime
+import os
 
 import aio_pika
 import ccxt.pro
-import colorlog
+from dotenv import load_dotenv
+from logger_utils import get_logger
+from models import PriceMessage
 from pydantic import BaseModel
 from pydantic import Field
 
-
-logger = logging.getLogger(__name__)
-handler = colorlog.StreamHandler()
-formatter = colorlog.ColoredFormatter(
-    "%(log_color)s%(asctime)s %(levelname)-7s %(message)s%(reset)s",
-    log_colors={
-        "DEBUG": "blue",
-        "INFO": "blue",
-        "WARNING": "yellow",
-        "ERROR": "red",
-        "CRITICAL": "red,bg_white",
-    },
-)
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
-
-
-class PriceMessage(BaseModel):
-    symbol: str
-    ask_price: float
-    bid_price: float
-    datetime: datetime
-
-    def __str__(self) -> str:
-        return f"{self.symbol} ask={self.ask_price} bid={self.bid_price}"
-
-    @classmethod
-    def from_orderbook(cls, orderbook: dict):
-        try:
-            if orderbook["timestamp"] is None:
-                dt = datetime.now()
-            else:
-                dt = datetime.fromtimestamp(float(orderbook["timestamp"]) / 1000)
-            return cls(
-                datetime=dt,
-                symbol=orderbook["symbol"],
-                ask_price=orderbook["asks"][0][0],
-                bid_price=orderbook["bids"][0][0],
-            )
-        except Exception as e:
-            logger.error(f"Error parsing orderbook {orderbook}: {e}")
-            return None
-
-    def has_changed(self, other: "PriceMessage", threshold: float = 0.0001) -> bool:
-        ask_diff_pct = abs(self.ask_price - other.ask_price) / self.ask_price
-        bid_diff_pct = abs(self.bid_price - other.bid_price) / self.bid_price
-        return ask_diff_pct > threshold or bid_diff_pct > threshold
+logger = get_logger(__name__)
 
 
 class Observer(BaseModel):
+    exchange_name: str
     symbol: str = Field(description="The symbol to observe")
-    exchange_id: str = Field(description="The exchange to observe")
     last_message: PriceMessage | None = None
 
     async def watch(self, exchange: ccxt.Exchange):
         while True:
             try:
                 orderbook = await exchange.watch_order_book(self.symbol)
-                new_message = PriceMessage.from_orderbook(orderbook)
+                new_message = PriceMessage.from_orderbook(orderbook, self.exchange_name)
 
                 if self.last_message is None or self.last_message.has_changed(
                     new_message
                 ):
-                    logger.info(f"Observed from {self.exchange_id}: {new_message}")
                     self.last_message = new_message
                     yield new_message
             except Exception as e:
@@ -87,22 +40,36 @@ class Observer(BaseModel):
 async def producer(observer: Observer, exchange: ccxt.Exchange, rabbitmq_url: str):
     connection = await aio_pika.connect_robust(rabbitmq_url)
     channel = await connection.channel()
-    queue = await channel.declare_queue("price_updates")
 
     try:
         async for price_message in observer.watch(exchange):
+            logger.info(
+                "Publishing price message to %s: %s",
+                price_message.subject(),
+                price_message,
+            )
             message = aio_pika.Message(body=price_message.model_dump_json().encode())
             await channel.default_exchange.publish(
                 message,
-                routing_key=queue.name,
+                routing_key=price_message.subject(),
             )
     finally:
         await connection.close()
 
 
+async def load_exchange(exchange_name: str):
+    client = getattr(ccxt.pro, exchange_name)()
+    await client.load_markets()
+    return client
+
+
 async def main() -> None:
-    exchange = ccxt.pro.kraken()
-    observer = Observer(symbol="BTC/USDT", exchange_id="kraken")
+    load_dotenv(".env")
+    exchange_id = os.getenv("EXCHANGE_ID")
+    exchange_name = os.getenv("EXCHANGE_NAME")
+    logger.info("Loading exchange %s", exchange_id)
+    exchange = await load_exchange(exchange_id)
+    observer = Observer(symbol="BTC/USDT", exchange_name=exchange_name)
     await producer(observer, exchange, "amqp://guest:guest@rabbitmq/")
 
 

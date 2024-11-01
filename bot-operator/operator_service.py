@@ -2,97 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 from collections.abc import Callable
-from datetime import datetime
-from typing import Literal
-from typing import Optional
 
 import aio_pika
-import colorlog
+from logger_utils import get_logger
+from models import Arbitrage
+from models import Order
+from models import PriceMessage
+from models import TradeMessage
 from pydantic import BaseModel
 from pydantic import Field
 
-logger = logging.getLogger(__name__)
-handler = colorlog.StreamHandler()
-formatter = colorlog.ColoredFormatter(
-    "%(log_color)s%(asctime)s %(levelname)-7s %(message)s%(reset)s",
-    log_colors={
-        "DEBUG": "cyan",
-        "INFO": "cyan",
-        "WARNING": "yellow",
-        "ERROR": "red",
-        "CRITICAL": "red,bg_white",
-    },
-)
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
-
-
-class PriceMessage(BaseModel):
-    symbol: str
-    ask_price: float
-    bid_price: float
-    datetime: datetime
-
-
-class TradeMessage(BaseModel):
-    symbol: str
-    amount: float
-    price: float
-    exchange: str
-    side: str
-    datetime: datetime
-
-
-class MarketOrder(BaseModel):
-    symbol: str
-    quantity: float
-    price: float
-    side: Literal["buy", "sell"]
-    exchange: str
-
-
-class Arbitrage(BaseModel):
-    target_market: str
-    origin_market: str
-    target_exchange: str
-    origin_exchange: str
-    profit_threshold: float
-    target_fee: float
-    origin_fee: float
-
-    def markup(self) -> float:
-        return self.profit_threshold + self.target_fee + self.origin_fee
-
-    def complete_arbitrage(self, trade_message: TradeMessage) -> Optional[Order]:
-        if trade_message.symbol != self.target_market:
-            return None
-
-        if trade_message.exchange != self.target_exchange:
-            return None
-
-        oposite_side = "buy" if trade_message.side == "sell" else "sell"
-
-        return Order(
-            symbol=self.origin_market,
-            quantity=trade_message.amount,
-            price=None,
-            side=oposite_side,
-            exchange=self.origin_exchange,
-            order_type="market",
-        )
-
-
-class Order(BaseModel):
-    symbol: str
-    quantity: float
-    price: Optional[float]
-    side: Literal["buy", "sell"]
-    exchange: str
-    order_type: Literal["market", "limit"]
-
+logger = get_logger(__name__)
 
 Balance = dict[str, float]
 StrategyFn = Callable[[Arbitrage, PriceMessage, Balance], list[Order]]
@@ -135,35 +56,45 @@ class Observer(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+    def target_exchange(self) -> str:
+        return self.arbitrage.target_exchange
+
+    def origin_exchange(self) -> str:
+        return self.arbitrage.origin_exchange
+
     async def on_price_update(self, message: aio_pika.IncomingMessage):
         try:
+            logger.info("Received price update from %s", message.routing_key)
             price = PriceMessage(**json.loads(message.body))
             orders = self.strategy(self.arbitrage, price, self.balances)
 
-            # Publish orders to the order_updates queue
             for order in orders:
+                subject = order.subject()
                 await self.channel.default_exchange.publish(
                     aio_pika.Message(body=order.model_dump_json().encode()),
-                    routing_key="order_updates",
+                    routing_key=subject,
                 )
-            logger.info(f"New decision: {order}")
+                logger.info("New decision to %s: %s", subject, order)
         except Exception as e:
-            logger.error(f"Error processing price update: {e}")
+            logger.error("Error processing price update: %s", e)
 
         finally:
             await message.ack()
 
     async def on_trade_update(self, message: aio_pika.IncomingMessage):
         try:
+            logger.info("Received trade update from %s", message.routing_key)
             trade = TradeMessage(**json.loads(message.body))
             order = self.arbitrage.complete_arbitrage(trade)
             if order:
+                subject = order.subject()
                 await self.channel.default_exchange.publish(
                     aio_pika.Message(body=order.model_dump_json().encode()),
-                    routing_key=f"order_updates_{order.exchange}",
+                    routing_key=subject,
                 )
+                logger.info("New decision to %s: %s", subject, order)
         except Exception as e:
-            logger.error(f"Error processing trade update: {e}")
+            logger.error("Error processing trade update: %s", e)
 
         finally:
             await message.ack()
@@ -172,17 +103,17 @@ class Observer(BaseModel):
         self.channel = await connection.channel()
 
         # Declare price updates queue
-        queue_price_updates = await self.channel.declare_queue("price_updates")
+        queue_price_updates = await self.channel.declare_queue(
+            f"price_updates_{self.origin_exchange()}"
+        )
         await queue_price_updates.consume(self.on_price_update)
 
         # Declare limit updates queue
-        _ = await self.channel.declare_queue(
-            f"limit_updates_{self.arbitrage.target_exchange}"
-        )
+        _ = await self.channel.declare_queue(f"limit_updates_{self.target_exchange()}")
 
         # Declare taker updates queue
         queue_trades_updates = await self.channel.declare_queue(
-            f"trades_updates_{self.arbitrage.target_exchange}"
+            f"trades_updates_{self.target_exchange()}"
         )
         await queue_trades_updates.consume(self.on_trade_update)
 
@@ -191,10 +122,10 @@ class Observer(BaseModel):
 
 async def main():
     arbitrage = Arbitrage(
-        target_market="BTC/USD",
+        target_market="BTC/USDT",
         origin_market="BTC/USDT",
-        target_exchange="kraken",
-        origin_exchange="binance",
+        target_exchange="bitfinex",
+        origin_exchange="kraken",
         profit_threshold=0.05,
         target_fee=0.002,
         origin_fee=0.001,
@@ -203,7 +134,7 @@ async def main():
     observer = Observer(
         arbitrage=arbitrage,
         strategy=simple_strategy,
-        balances={"BTC": 0.0003, "USDT": 0.0, "USD": 1000.0},
+        balances={"BTC": 0.0, "USDT": 100.0},
     )
     await observer.subscribe(connection)
 
