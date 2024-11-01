@@ -1,33 +1,47 @@
 ---
 services:
-  place-orders:
+  # place-orders:
+  #   tty: true
+  #   env_file:
+  #     - place-orders/.env
+  #   build:
+  #     context: ./place-orders
+  #     dockerfile: Dockerfile
+  #   container_name: place-orders
+  #   networks:
+  #     - demo
+  #   restart: always
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  # bot-operator:
+  #   tty: true
+  #   build:
+  #     context: ./bot-operator
+  #     dockerfile: Dockerfile
+  #   container_name: bot-operator
+  #   networks:
+  #     - demo
+  #   restart: always
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+
+  trade-watch-bitfinex:
     tty: true
+    build:
+      context: ./trade-watch
+      dockerfile: Dockerfile
+    container_name: trade-watch-bitfinex
     env_file:
-      - place-orders/.env
-    build:
-      context: ./place-orders
-      dockerfile: Dockerfile
-    container_name: place-orders
+      - ./trade-watch/.env.trade-watch-bitfinex
     networks:
       - demo
-    restart: always
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  bot-operator:
-    tty: true
-    build:
-      context: ./bot-operator
-      dockerfile: Dockerfile
-    container_name: bot-operator
-    networks:
-      - demo
-    restart: always
     depends_on:
       rabbitmq:
         condition: service_healthy
 
-  price-watch:
+  price-watch-kraken:
     tty: true
     build:
       context: ./price-watch

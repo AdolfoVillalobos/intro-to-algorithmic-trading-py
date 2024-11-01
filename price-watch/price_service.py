@@ -62,6 +62,7 @@ class PriceMessage(BaseModel):
 
 class Observer(BaseModel):
     symbol: str = Field(description="The symbol to observe")
+    exchange_id: str = Field(description="The exchange to observe")
     last_message: PriceMessage | None = None
 
     async def watch(self, exchange: ccxt.Exchange):
@@ -73,7 +74,7 @@ class Observer(BaseModel):
                 if self.last_message is None or self.last_message.has_changed(
                     new_message
                 ):
-                    logger.info(f"Observed: {new_message}")
+                    logger.info(f"Observed from {self.exchange_id}: {new_message}")
                     self.last_message = new_message
                     yield new_message
             except Exception as e:
@@ -100,8 +101,8 @@ async def producer(observer: Observer, exchange: ccxt.Exchange, rabbitmq_url: st
 
 
 async def main() -> None:
-    exchange = ccxt.pro.binance()
-    observer = Observer(symbol="BTC/USDT")
+    exchange = ccxt.pro.kraken()
+    observer = Observer(symbol="BTC/USDT", exchange_id="kraken")
     await producer(observer, exchange, "amqp://guest:guest@rabbitmq/")
 
 

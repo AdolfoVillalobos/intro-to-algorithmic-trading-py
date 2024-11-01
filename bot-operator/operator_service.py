@@ -6,6 +6,7 @@ import logging
 from collections.abc import Callable
 from datetime import datetime
 from typing import Literal
+from typing import Optional
 
 import aio_pika
 import colorlog
@@ -36,6 +37,23 @@ class PriceMessage(BaseModel):
     datetime: datetime
 
 
+class TradeMessage(BaseModel):
+    symbol: str
+    amount: float
+    price: float
+    exchange: str
+    side: str
+    datetime: datetime
+
+
+class MarketOrder(BaseModel):
+    symbol: str
+    quantity: float
+    price: float
+    side: Literal["buy", "sell"]
+    exchange: str
+
+
 class Arbitrage(BaseModel):
     target_market: str
     origin_market: str
@@ -48,11 +66,29 @@ class Arbitrage(BaseModel):
     def markup(self) -> float:
         return self.profit_threshold + self.target_fee + self.origin_fee
 
+    def complete_arbitrage(self, trade_message: TradeMessage) -> Optional[Order]:
+        if trade_message.symbol != self.target_market:
+            return None
+
+        if trade_message.exchange != self.target_exchange:
+            return None
+
+        oposite_side = "buy" if trade_message.side == "sell" else "sell"
+
+        return Order(
+            symbol=self.origin_market,
+            quantity=trade_message.amount,
+            price=None,
+            side=oposite_side,
+            exchange=self.origin_exchange,
+            order_type="market",
+        )
+
 
 class Order(BaseModel):
     symbol: str
     quantity: float
-    price: float
+    price: Optional[float]
     side: Literal["buy", "sell"]
     exchange: str
     order_type: Literal["market", "limit"]
@@ -117,13 +153,38 @@ class Observer(BaseModel):
         finally:
             await message.ack()
 
+    async def on_trade_update(self, message: aio_pika.IncomingMessage):
+        try:
+            trade = TradeMessage(**json.loads(message.body))
+            order = self.arbitrage.complete_arbitrage(trade)
+            if order:
+                await self.channel.default_exchange.publish(
+                    aio_pika.Message(body=order.model_dump_json().encode()),
+                    routing_key=f"order_updates_{order.exchange}",
+                )
+        except Exception as e:
+            logger.error(f"Error processing trade update: {e}")
+
+        finally:
+            await message.ack()
+
     async def subscribe(self, connection: aio_pika.Connection):
         self.channel = await connection.channel()
-        queue = await self.channel.declare_queue("price_updates")
 
-        await self.channel.declare_queue("order_updates")
+        # Declare price updates queue
+        queue_price_updates = await self.channel.declare_queue("price_updates")
+        await queue_price_updates.consume(self.on_price_update)
 
-        await queue.consume(self.on_price_update)
+        # Declare limit updates queue
+        _ = await self.channel.declare_queue(
+            f"limit_updates_{self.arbitrage.target_exchange}"
+        )
+
+        # Declare taker updates queue
+        queue_trades_updates = await self.channel.declare_queue(
+            f"trades_updates_{self.arbitrage.target_exchange}"
+        )
+        await queue_trades_updates.consume(self.on_trade_update)
 
         await asyncio.Future()
 

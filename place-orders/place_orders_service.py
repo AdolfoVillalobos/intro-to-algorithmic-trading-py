@@ -104,11 +104,24 @@ class Observer(BaseModel):
         finally:
             await message.ack()
 
+    async def on_taker_update(self, message: aio_pika.IncomingMessage):
+        pass
+
     async def subscribe(self, connection: aio_pika.Connection):
         self.channel = await connection.channel()
-        queue = await self.channel.declare_queue("order_updates")
+
+        # Declare maker queue
+        queue_name = f"order_updates_{self.exchange_id}"
+        logger.info(f"Declaring queue {queue_name}")
+        queue = await self.channel.declare_queue(queue_name)
 
         await queue.consume(self.on_order_update)
+
+        # Declare taker queue
+        queue_name = f"taker_updates_{self.exchange_id}"
+        logger.info(f"Declaring queue {queue_name}")
+        queue = await self.channel.declare_queue(queue_name)
+        await queue.consume(self.on_taker_update)
 
     async def close(self):
         if self.exchange:
