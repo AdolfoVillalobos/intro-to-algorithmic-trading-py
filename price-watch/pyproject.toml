@@ -9,6 +9,7 @@ dependencies = [
     "ccxt>=4.4.24",
     "colorlog>=6.8.2",
     "pydantic>=2.9.2",
+    "python-dotenv>=1.0.1",
 ]
 
 [tool.uv]
