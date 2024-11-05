@@ -15,6 +15,7 @@ logger = get_logger(__name__)
 
 
 class Observer(BaseModel):
+    exchange_name: str = Field(description="The exchange name to observe")
     symbol: str = Field(description="The symbol to observe")
 
     async def consume(self, exchange: ccxt.Exchange):
@@ -22,13 +23,10 @@ class Observer(BaseModel):
             try:
                 trades = await exchange.watch_my_trades()
                 for trade in trades:
-                    new_message = TradeMessage.from_ccxt(trade, exchange.id)
+                    new_message = TradeMessage.from_ccxt(trade, self.exchange_name)
                     yield new_message
             except Exception as e:
                 logger.error(f"Error watching {self.symbol}: {e}")
-
-            finally:
-                await asyncio.sleep(2)
 
 
 async def producer(observer: Observer, exchange: ccxt.Exchange, rabbitmq_url: str):
@@ -68,7 +66,7 @@ async def main() -> None:
     exchange_name = os.getenv("EXCHANGE_NAME")
 
     exchange = await load_exchange(exchange_id)
-    observer = Observer(symbol="BTC/USDT", exchange_id=exchange_name)
+    observer = Observer(symbol="BTC/USDT", exchange_name=exchange_name)
     await producer(observer, exchange, "amqp://guest:guest@rabbitmq/")
 
 

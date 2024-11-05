@@ -17,6 +17,7 @@ logger = get_logger(__name__)
 
 
 async def load_exchange(exchange_name: str):
+    logger.info(f"Loading {exchange_name} exchange")
     api_key = os.getenv(f"{exchange_name.upper()}_API_KEY")
     secret = os.getenv(f"{exchange_name.upper()}_API_SECRET")
     client = getattr(ccxt, exchange_name)(
@@ -83,11 +84,12 @@ class Observer(BaseModel):
 
     async def execute_market_order(self, order: Order):
         try:
+            logger.warning(f"Executing market order: {order}")
             result = await self.exchange.create_order(
                 symbol=order.symbol,
                 side=order.side,
                 amount=order.quantity,
-                type=order.order_type,
+                type="market",
             )
             logger.warning(f"New order on {order.key()}: {result}")
         except Exception as e:
@@ -97,7 +99,8 @@ class Observer(BaseModel):
         self.channel = await connection.channel()
 
         # Declare maker queue
-        queue_name = f"order_updates_{self.exchange_name}"
+        queue_name = f"order_updates_{self.exchange_name.lower()}"
+        logger.info(f"Subscribing to queue {queue_name}")
 
         queue = await self.channel.declare_queue(queue_name)
 
@@ -106,6 +109,7 @@ class Observer(BaseModel):
     async def close(self):
         if self.exchange:
             await self.exchange.cancel_all_orders()
+            await self.exchange.close()
 
 
 async def main():

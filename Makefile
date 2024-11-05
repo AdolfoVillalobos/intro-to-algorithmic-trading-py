@@ -10,7 +10,7 @@ service-build:
 	docker compose ${DOCKER_COMPOSE_ARGS} build
 
 service-up:
-	docker compose ${DOCKER_COMPOSE_ARGS} up -d --remove-orphans
+	docker compose ${DOCKER_COMPOSE_ARGS} up -d --remove-orphans --force-recreate
 
 service-down:
-	docker compose ${DOCKER_COMPOSE_ARGS} down
+	docker compose ${DOCKER_COMPOSE_ARGS} down -v
