@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from abc import ABC
 from abc import abstractmethod
@@ -96,3 +97,5 @@ class ArbitrageObserver(EventObserver, BaseModel):
         trade_subject = f"trade_updates_{self.arbitrage.target_exchange}"
         trade_queue = await self.channel.declare_queue(trade_subject)
         await trade_queue.consume(self.on_trade_update)
+
+        await asyncio.Future()

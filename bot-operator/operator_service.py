@@ -13,7 +13,7 @@ async def operator_service():
         origin_market="BTC/USDT",
         target_exchange="bitfinex",
         origin_exchange="kraken",
-        profit_threshold=0.05,
+        profit_threshold=0.01,
         target_fee=0.002,
         origin_fee=0.001,
     )

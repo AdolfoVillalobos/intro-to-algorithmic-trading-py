@@ -12,20 +12,20 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-  # place-orders-bitfinex:
-  #   tty: true
-  #   env_file:
-  #     - place-orders/.env.place-orders-bitfinex
-  #   build:
-  #     context: ./place-orders
-  #     dockerfile: Dockerfile
-  #   container_name: place-orders-bitfinex
-  #   networks:
-  #     - demo
-  #   restart: always
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
+  place-orders-bitfinex:
+    tty: true
+    env_file:
+      - place-orders/.env.place-orders-bitfinex
+    build:
+      context: ./place-orders
+      dockerfile: Dockerfile
+    container_name: place-orders-bitfinex
+    networks:
+      - demo
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
   # place-orders-kraken:
   #   tty: true
   #   env_file:
