@@ -17,13 +17,8 @@ lint:
 typecheck:
 	uv run pyright
 
-
-.PHONY: test  # Run the tests
-test:
-	uv run pytest
-
 run:
-	uv run python -m main
+	uv run python -m trades_service
 
 .PHONY: all  # Run all the commands
 all: format lint typecheck run

@@ -1,39 +1,72 @@
 ---
 services:
-  place-orders:
+  # bot-operator:
+  #   tty: true
+  #   build:
+  #     context: ./bot-operator
+  #     dockerfile: Dockerfile
+  #   container_name: bot-operator
+  #   networks:
+  #     - demo
+  #   restart: always
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  place-orders-bitfinex:
     tty: true
+    env_file:
+      - place-orders/.env.place-orders-bitfinex
     build:
       context: ./place-orders
       dockerfile: Dockerfile
-    container_name: place-orders
+    container_name: place-orders-bitfinex
     networks:
       - demo
     restart: always
     depends_on:
-      - rabbitmq
-
-  bot-operator:
+      rabbitmq:
+        condition: service_healthy
+  place-orders-kraken:
+    tty: true
+    env_file:
+      - place-orders/.env.place-orders-kraken
+    build:
+      context: ./place-orders
+      dockerfile: Dockerfile
+    container_name: place-orders-kraken
+    networks:
+      - demo
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  trade-watch-bitfinex:
     tty: true
     build:
-      context: ./bot-operator
+      context: ./trade-watch
       dockerfile: Dockerfile
-    container_name: bot-operator
+    container_name: trade-watch-bitfinex
+    env_file:
+      - ./trade-watch/.env.trade-watch-bitfinex
     networks:
       - demo
-    restart: always
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
 
-  price-watch:
+  price-watch-kraken:
     tty: true
     build:
       context: ./price-watch
       dockerfile: Dockerfile
-    container_name: price-watch
+    container_name: price-watch-kraken
+    env_file:
+      - ./price-watch/.env.price-watch-kraken
     networks:
       - demo
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
   rabbitmq:
     image: rabbitmq:3.12.2-management
     ports:
@@ -43,9 +76,13 @@ services:
       - demo
     container_name: rabbitmq
     restart: always
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 20s
+      timeout: 20s
+      retries: 10
     expose:
       - "5672"
-
 networks:
   demo:
     name: "demo"

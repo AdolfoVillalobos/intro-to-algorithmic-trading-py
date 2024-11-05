@@ -6,6 +6,8 @@ aiormq==6.8.1
     # via aio-pika
 annotated-types==0.7.0
     # via pydantic
+colorlog==6.8.2
+    # via bot-operator (pyproject.toml)
 idna==3.10
     # via yarl
 multidict==6.1.0
