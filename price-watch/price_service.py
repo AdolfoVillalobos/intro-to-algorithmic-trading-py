@@ -47,7 +47,7 @@ class CCXTPriceSource(PriceSource):
             except Exception as e:
                 logger.error(f"Error watching {symbol}: {e}")
             finally:
-                await asyncio.sleep(2)
+                await asyncio.sleep(10)
 
 
 class MessageQueuePublisher(BaseModel):
