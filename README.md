@@ -29,3 +29,10 @@ To stop the project, use the following command:
 ```bash
 make service-down
 ```
+
+## Talk
+
+I made a talk about this project (November 6th):
+
+1. Event: [Melbourne Python Meetup](https://www.meetup.com/melbourne-python-user-group/events/304091942).
+2. Slides [here](https://melb-py.adolfovillalobos.com). The source for the slides is available on: [GitHub](https://github.com/AdolfoVillalobos/intro-to-algorithmic-trading-slides).
