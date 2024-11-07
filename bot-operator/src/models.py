@@ -49,21 +49,3 @@ class Arbitrage(BaseModel):
 
     def markup(self) -> float:
         return self.profit_threshold + self.target_fee + self.origin_fee
-
-    def complete_arbitrage(self, trade_message: TradeMessage) -> Optional[Order]:
-        if trade_message.symbol != self.target_market:
-            return None
-
-        if trade_message.exchange != self.target_exchange:
-            return None
-
-        oposite_side = "buy" if trade_message.side == "sell" else "sell"
-
-        return Order(
-            symbol=self.origin_market,
-            quantity=trade_message.amount,
-            price=None,
-            side=oposite_side,
-            exchange=self.origin_exchange,
-            order_type="market",
-        )

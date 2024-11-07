@@ -1,17 +1,17 @@
 ---
 services:
-  # bot-operator:
-  #   tty: true
-  #   build:
-  #     context: ./bot-operator
-  #     dockerfile: Dockerfile
-  #   container_name: bot-operator
-  #   networks:
-  #     - demo
-  #   restart: always
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
+  bot-operator:
+    tty: true
+    build:
+      context: ./bot-operator
+      dockerfile: Dockerfile
+    container_name: bot-operator
+    networks:
+      - demo
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
   place-orders-bitfinex:
     tty: true
     env_file:

@@ -3,37 +3,38 @@ from __future__ import annotations
 from abc import ABC
 from abc import abstractmethod
 
-from models import Arbitrage
-from models import Order
-from models import PriceMessage
+from src.models import Arbitrage
+from src.models import Order
+from src.models import PriceMessage
+from src.models import TradeMessage
 
 
 class TradingStrategy(ABC):
+    """
+    A trading strategy is a class that generates orders based on events.
+    """
+
     @abstractmethod
-    def execute(
+    def generate_limit_orders(
         self, arbitrage: Arbitrage, price: PriceMessage, amount_to_trade_usdt: float
+    ) -> list[Order]:
+        pass
+
+    @abstractmethod
+    def generate_market_orders(
+        self, arbitrage: Arbitrage, trade_message: TradeMessage
     ) -> list[Order]:
         pass
 
 
 class SimpleStrategy(TradingStrategy):
-    def execute(
+    def generate_limit_orders(
         self, arbitrage: Arbitrage, price: PriceMessage, amount_to_trade_usdt: float
     ) -> list[Order]:
         ask_price = price.ask_price * (1.0 + arbitrage.markup())
-        bid_price = price.bid_price * (1.0 - arbitrage.markup())
 
         ask_quantity = amount_to_trade_usdt / ask_price
-        bid_quantity = amount_to_trade_usdt / bid_price
         return [
-            Order(
-                symbol=arbitrage.target_market,
-                quantity=bid_quantity,
-                price=bid_price,
-                side="buy",
-                exchange=arbitrage.target_exchange,
-                order_type="limit",
-            ),
             Order(
                 symbol=arbitrage.target_market,
                 quantity=ask_quantity,
@@ -42,4 +43,26 @@ class SimpleStrategy(TradingStrategy):
                 exchange=arbitrage.target_exchange,
                 order_type="limit",
             ),
+        ]
+
+    def generate_market_orders(
+        self, arbitrage: Arbitrage, trade_message: TradeMessage
+    ) -> list[Order]:
+        if trade_message.symbol != arbitrage.target_market:
+            return []
+
+        if trade_message.exchange != arbitrage.target_exchange:
+            return []
+
+        oposite_side = "buy" if trade_message.side == "sell" else "sell"
+
+        return [
+            Order(
+                symbol=arbitrage.origin_market,
+                quantity=trade_message.amount,
+                price=None,
+                side=oposite_side,
+                exchange=arbitrage.origin_exchange,
+                order_type="market",
+            )
         ]
